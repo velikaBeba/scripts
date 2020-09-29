@@ -1,0 +1,108 @@
+#!/bin/luajit
+
+local tokens = { ["+"] = { func     = function(a, b) return a + b end
+                         , priority = 0
+                         }
+               , ["-"] = { func     = function(a, b) return a - b end
+                         , priority = 0
+                         }
+               , ["*"] = { func     = function(a, b) return a * b end
+                         , priority = 1
+                         }
+               , ["/"] = { func     = function(a, b) return a / b end
+                         , priority = 1
+                         }
+               , ["^"] = { func     = function(a, b) return math.pow(a, b) end
+                         , priority = 2
+                         }
+               }
+
+local function parse(str)
+  local output_tree = {}
+
+  -- Create the tree
+  for i = 1, #str do
+    local c = string.sub(str, i, i)
+
+    if     c == " " then
+      -- Ignore spaces
+    elseif tonumber(c) ~= nil or c == "." then -- check if input is number or decimal
+      -- If were already making a number, append the string, else, add new string to end
+      if type(output_tree[#output_tree]) == "string" then
+        output_tree[#output_tree] = output_tree[#output_tree] .. c
+      else
+        table.insert(output_tree, c)
+      end
+    elseif tokens[c] ~= nil then -- check that c is valid token if it isn't a number
+      output_tree[#output_tree] = tonumber(output_tree[#output_tree])
+
+      -- clump list together if it isn't the first insertion
+      if #output_tree > 1 then
+        output_tree = {output_tree}
+      end
+
+      table.insert(output_tree, 1, c)
+    else
+      return nil, string.format("Syntax Error: '%s' is an invalid token", c)
+    end
+  end
+
+  -- tonumber-ify last num because it is usually done when token is detected
+  output_tree[#output_tree] = tonumber(output_tree[#output_tree])
+
+  -- Sort by priority
+  local sorted = true
+  sort = function(tree)
+    -- check if left branch has more branches
+    if type(tree[2]) == "table" then
+      -- check priority
+      if tokens[tree[1]].priority > tokens[tree[2][1]].priority then
+        -- perform the swap and mark tree as unsorted
+        sorted = false
+        return {tree[2][1], tree[2][2], {tree[1], tree[2][3], tree[3]}}
+      else
+        -- continue down the tree to trhe left
+        return {tree[1], sort(tree[2]), tree[3]}
+      end
+    else
+      -- return when at bottom of tree
+      return tree
+    end
+  end
+
+  repeat
+    sorted = true
+    output_tree = sort(output_tree)
+  until sorted
+
+  return output_tree
+end
+
+local function eval(tree, show)
+  if type(tree) == "number" then return tree end
+  local func = tokens[tree[1]].func
+  return func(eval(tree[2]), eval(tree[3]))
+end
+
+local function main()
+  local running = true
+
+  while running do
+    io.write("> ")
+    local input_str = io.read()
+
+    if input_str == "q" then
+      running = false
+    else
+      local tree, log = parse(input_str)
+      
+      if tree == nil then 
+        print(log)
+      else
+        print(eval(tree))
+      end
+    end
+  end
+end
+
+main()
